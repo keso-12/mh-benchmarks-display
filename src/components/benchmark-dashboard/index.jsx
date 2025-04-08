@@ -18,6 +18,14 @@ import ResolutionChart from './charts/ResolutionChart';
 import ResolutionPerformanceTable from './ResolutionPerformanceTable';
 import Footer from './Footer';
 
+// Import utility functions
+import {
+  parseCSVLine,
+  standardizeGPUName,
+  formatGoogleSheetUrl
+} from './utils/dataProcessing';
+import { processData } from './utils/chartProcessing';
+
 // Add a debug component to help troubleshoot data issues
 const DebugPanel = ({ isOpen, data, toggleDebug }) => {
   if (!isOpen) return (
@@ -90,40 +98,13 @@ const BenchmarkDashboard = () => {
   // Toggle debug mode
   const toggleDebug = () => setDebugMode(!debugMode);
 
-  // Format Google Sheet URL for CSV export
-  const formatGoogleSheetUrl = (url) => {
-    if (!url || url.trim() === "") return DEFAULT_GOOGLE_SHEET_URL;
-
-    // Check if URL is already in the correct format
-    if (url.includes("/export?format=csv")) return url;
-
-    // Extract the sheet ID
-    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (!match) {
-      setError("Invalid Google Sheets URL format. Please provide a valid URL.");
-      return null;
-    }
-
-    const sheetId = match[1];
-
-    // Extract gid if present, otherwise use 0 (first sheet)
-    let gid = "0";
-    const gidMatch = url.match(/[?&]gid=([0-9]+)/);
-    if (gidMatch) {
-      gid = gidMatch[1];
-    }
-
-    // Format the export URL
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-  };
-
   const fetchData = async (urlToFetch = null) => {
     try {
       setError(null);
       setRefreshing(true);
 
       // Use the provided URL or the default if none is given
-      const csvUrl = formatGoogleSheetUrl(urlToFetch || sheetUrl);
+      const csvUrl = formatGoogleSheetUrl(urlToFetch || sheetUrl, DEFAULT_GOOGLE_SHEET_URL);
       if (!csvUrl) {
         setRefreshing(false);
         return;
@@ -271,7 +252,17 @@ const BenchmarkDashboard = () => {
       // Set the data and process it
       setData(parsedData);
       setFilteredData(parsedData);
-      processData(parsedData);
+
+      // Process data for charts
+      const chartData = processData(parsedData);
+      setGpuPerformance(chartData.gpuPerformance);
+      setCpuData(chartData.cpuData);
+      setVerdictData(chartData.verdictData);
+      setRtData(chartData.rtData);
+      setResolutionData(chartData.resolutionData);
+      setFpsRangeData(chartData.fpsRangeData);
+      setUpscalingData(chartData.upscalingData);
+
       setLastUpdated(new Date());
       setLoading(false);
       setRefreshing(false);
@@ -284,460 +275,6 @@ const BenchmarkDashboard = () => {
       // Use sample data as fallback
       handleManualDataEntry();
     }
-  };
-
-  // Helper function to parse a CSV line, handling quoted fields properly
-  const parseCSVLine = (line) => {
-    const fields = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-
-      if (char === '"') {
-        // Toggle the in-quotes flag when we hit a quote
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        // End of field, add to results
-        fields.push(current);
-        current = '';
-      } else {
-        // Add character to current field
-        current += char;
-      }
-    }
-
-    // Add the last field
-    fields.push(current);
-
-    return fields;
-  };
-
-  // Comprehensive GPU name standardization function based on specific model list
-  const standardizeGPUName = (gpuName) => {
-    if (!gpuName) return 'Unknown';
-
-    // Convert to uppercase for case-insensitive matching
-    const upperName = gpuName.toUpperCase();
-
-    // NVIDIA RTX 5000 series
-    if (upperName.includes('5090')) return 'RTX 5090';
-    if (upperName.includes('5080')) return 'RTX 5080';
-    if (upperName.includes('5070') && upperName.includes('TI')) return 'RTX 5070 Ti';
-    if (upperName.includes('5070')) return 'RTX 5070';
-    if (upperName.includes('5060')) return 'RTX 5060';
-
-    // NVIDIA RTX 4000 series
-    if (upperName.includes('4090')) return 'RTX 4090';
-    if (upperName.includes('4080') && upperName.includes('SUPER')) return 'RTX 4080 Super';
-    if (upperName.includes('4080')) return 'RTX 4080';
-    if (upperName.includes('4070') && upperName.includes('TI') && upperName.includes('SUPER')) return 'RTX 4070 Ti Super';
-    if (upperName.includes('4070') && upperName.includes('TI')) return 'RTX 4070 Ti';
-    if (upperName.includes('4070') && upperName.includes('SUPER')) return 'RTX 4070 Super';
-    if (upperName.includes('4070')) return 'RTX 4070';
-    if (upperName.includes('4060') && upperName.includes('TI')) return 'RTX 4060 Ti';
-    if (upperName.includes('4060')) return 'RTX 4060';
-
-    // NVIDIA RTX 3000 series
-    if (upperName.includes('3090') && upperName.includes('TI')) return 'RTX 3090 Ti';
-    if (upperName.includes('3090')) return 'RTX 3090';
-    if (upperName.includes('3080') && upperName.includes('TI')) return 'RTX 3080 Ti';
-    if (upperName.includes('3080')) return 'RTX 3080';
-    if (upperName.includes('3070') && upperName.includes('TI')) return 'RTX 3070 Ti';
-    if (upperName.includes('3070')) return 'RTX 3070';
-    if (upperName.includes('3060') && upperName.includes('TI')) return 'RTX 3060 Ti';
-    if (upperName.includes('3060')) return 'RTX 3060';
-
-    // AMD RX 9000 series
-    if (upperName.includes('9070') && upperName.includes('XT')) return 'RX 9070 XT';
-    if (upperName.includes('9070')) return 'RX 9070';
-
-    // AMD RX 7000 series
-    if (upperName.includes('7900') && upperName.includes('XTX')) return 'RX 7900 XTX';
-    if (upperName.includes('7900') && upperName.includes('XT')) return 'RX 7900 XT';
-    if (upperName.includes('7800') && upperName.includes('XT')) return 'RX 7800 XT';
-    if (upperName.includes('7700') && upperName.includes('XT')) return 'RX 7700 XT';
-    if (upperName.includes('7600')) return 'RX 7600';
-
-    // AMD RX 6000 series
-    if (upperName.includes('6950') && upperName.includes('XT')) return 'RX 6950 XT';
-    if (upperName.includes('6900') && upperName.includes('XT')) return 'RX 6900 XT';
-    if (upperName.includes('6800') && upperName.includes('XT')) return 'RX 6800 XT';
-    if (upperName.includes('6800')) return 'RX 6800';
-    if (upperName.includes('6700') && upperName.includes('XT')) return 'RX 6700 XT';
-    if (upperName.includes('6700')) return 'RX 6700';
-    if (upperName.includes('6600') && upperName.includes('XT')) return 'RX 6600 XT';
-    if (upperName.includes('6600')) return 'RX 6600';
-    if (upperName.includes('6500') && upperName.includes('XT')) return 'RX 6500 XT';
-    if (upperName.includes('6500')) return 'RX 6500';
-
-    // Intel Arc
-    if (upperName.includes('ARC') && upperName.includes('B580')) return 'Arc B580';
-    if (upperName.includes('ARC') && upperName.includes('A770')) return 'Arc A770';
-    if (upperName.includes('ARC') && upperName.includes('A750')) return 'Arc A750';
-    if (upperName.includes('ARC') && upperName.includes('A580')) return 'Arc A580';
-    if (upperName.includes('ARC') && upperName.includes('A380')) return 'Arc A380';
-    if (upperName.includes('ARC') && upperName.includes('A310')) return 'Arc A310';
-
-    // Handle common misspellings or variations that might appear in your data
-    if (upperName.includes('GEFORCE') || upperName.includes('NVIDIA')) {
-      // Look for any 4-digit number pattern that might be a GPU model
-      const modelMatch = upperName.match(/\b(\d{4})\b/);
-      if (modelMatch) {
-        const modelNumber = modelMatch[1];
-        // Try to determine the series
-        if (modelNumber.startsWith('5')) {
-          return `RTX ${modelNumber}`;
-        } else if (modelNumber.startsWith('4')) {
-          return `RTX ${modelNumber}`;
-        } else if (modelNumber.startsWith('3')) {
-          return `RTX ${modelNumber}`;
-        } else if (modelNumber.startsWith('2')) {
-          return `RTX ${modelNumber}`;
-        } else if (modelNumber.startsWith('1')) {
-          return `GTX ${modelNumber}`;
-        }
-      }
-
-      // If it has RTX or GTX but we couldn't extract a model number
-      if (upperName.includes('RTX')) {
-        return 'RTX GPU';
-      } else if (upperName.includes('GTX')) {
-        return 'GTX GPU';
-      }
-
-      // Generic NVIDIA GPU
-      return 'NVIDIA GPU';
-    }
-
-    if (upperName.includes('RADEON') || upperName.includes('AMD')) {
-      // Look for RX with a 4-digit number
-      const modelMatch = upperName.match(/RX\s*(\d{4})/i);
-      if (modelMatch) {
-        const modelNumber = modelMatch[1];
-        return `RX ${modelNumber}`;
-      }
-
-      // Generic AMD GPU
-      return 'AMD GPU';
-    }
-
-    // For any other GPU that doesn't match our specific patterns
-    if (upperName.includes('RTX ASTRAL')) {
-      return 'RTX Astral';
-    }
-
-    // If the GPU name contains "mobile" or "laptop", add that designation
-    if (upperName.includes('MOBILE') || upperName.includes('LAPTOP')) {
-      // Try to extract the model number again
-      const modelMatch = upperName.match(/\b(\d{4})\b/);
-      if (modelMatch && upperName.includes('RTX')) {
-        return `RTX ${modelMatch[1]} Laptop`;
-      } else if (modelMatch && upperName.includes('GTX')) {
-        return `GTX ${modelMatch[1]} Laptop`;
-      } else if (modelMatch && upperName.includes('RX')) {
-        return `RX ${modelMatch[1]} Laptop`;
-      }
-      return 'Laptop GPU';
-    }
-
-    // Handle GPUs with "TI" or "Super" without specific number identification
-    if (upperName.includes('RTX') && upperName.includes('TI')) {
-      const modelMatch = upperName.match(/RTX\s*(\d{4})/i);
-      if (modelMatch) {
-        return `RTX ${modelMatch[1]} Ti`;
-      }
-    }
-
-    if (upperName.includes('RTX') && upperName.includes('SUPER')) {
-      const modelMatch = upperName.match(/RTX\s*(\d{4})/i);
-      if (modelMatch) {
-        return `RTX ${modelMatch[1]} Super`;
-      }
-    }
-
-    // If we can't match any specific pattern, just return the original name
-    return gpuName;
-  };
-
-  // Updated processData function to fix all chart components
-  const processData = (dataToProcess) => {
-    if (!dataToProcess || dataToProcess.length === 0) {
-      // Set empty data for all charts
-      setGpuPerformance([]);
-      setCpuData([]);
-      setVerdictData([]);
-      setRtData([]);
-      setResolutionData([]);
-      setFpsRangeData([]);
-      setUpscalingData([]);
-      return;
-    }
-
-    console.log("Processing data for charts, total rows:", dataToProcess.length);
-
-    // 1. Process GPU Performance (already working)
-    const gpuMap = {};
-    dataToProcess.forEach(row => {
-      const gpu = row['GPU'];
-      const fps = row['Average FPS Score'];
-      if (gpu && fps !== null && !isNaN(fps)) {
-        // Standardize the GPU name
-        const standardizedGpu = standardizeGPUName(gpu);
-
-        if (!gpuMap[standardizedGpu]) {
-          gpuMap[standardizedGpu] = { total: 0, count: 0 };
-        }
-        gpuMap[standardizedGpu].total += parseFloat(fps);
-        gpuMap[standardizedGpu].count++;
-      }
-    });
-
-    const gpuPerf = Object.entries(gpuMap)
-      .filter(([_, data]) => data.count >= 1) // Only GPUs with at least 1 sample
-      .map(([gpu, data]) => ({
-        name: gpu,
-        avgFPS: Math.round(data.total / data.count * 100) / 100,
-        count: data.count
-      }))
-      .sort((a, b) => b.avgFPS - a.avgFPS)
-      .slice(0, 15);
-
-    setGpuPerformance(gpuPerf);
-
-    // 2. Process CPU Data - Fix handling of CPU model names
-    const cpuMap = {};
-    dataToProcess.forEach(row => {
-      let cpu = row['CPU Model'];
-      if (cpu) {
-        // Standardize CPU names
-        cpu = standardizeCPUName(cpu);
-
-        if (!cpuMap[cpu]) {
-          cpuMap[cpu] = 0;
-        }
-        cpuMap[cpu]++;
-      }
-    });
-
-    const cpuFreq = Object.entries(cpuMap)
-      .map(([cpu, count]) => ({
-        name: cpu,
-        count: count
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    setCpuData(cpuFreq);
-
-    // 3. Process Verdict Data - Fix handling of verdict values
-    const verdictMap = {};
-    dataToProcess.forEach(row => {
-      let verdict = row['Verdict'];
-      if (verdict) {
-        // Standardize verdict values
-        verdict = standardizeVerdict(verdict);
-
-        if (!verdictMap[verdict]) {
-          verdictMap[verdict] = 0;
-        }
-        verdictMap[verdict]++;
-      }
-    });
-
-    const verdictFreq = Object.entries(verdictMap)
-      .map(([verdict, count]) => ({
-        name: verdict,
-        value: count
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    setVerdictData(verdictFreq);
-
-    // 4. Process Ray Tracing Data - Add fallbacks for missing values
-    const rtMap = {};
-    dataToProcess.forEach(row => {
-      let rt = row['Ray Tracing'];
-      if (!rt || rt === "") {
-        rt = "Off"; // Default value if missing
-      }
-
-      if (!rtMap[rt]) {
-        rtMap[rt] = 0;
-      }
-      rtMap[rt]++;
-    });
-
-    const rtFreq = Object.entries(rtMap)
-      .map(([setting, count]) => ({
-        name: setting,
-        value: count
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    setRtData(rtFreq);
-
-    // 5. Process Resolution Data - Add fallbacks for missing values
-    const resMap = {};
-    dataToProcess.forEach(row => {
-      let res = row['Screen Resolution'];
-      if (!res || res === "") {
-        res = "Unknown"; // Default value if missing
-      }
-
-      if (!resMap[res]) {
-        resMap[res] = 0;
-      }
-      resMap[res]++;
-    });
-
-    const resFreq = Object.entries(resMap)
-      .map(([res, count]) => ({
-        name: res,
-        value: count
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-
-    setResolutionData(resFreq);
-
-    // 6. Process FPS Range Data - Make sure we're handling numeric values correctly
-    const fpsRanges = [
-      { range: '0-30', min: 0, max: 30, count: 0 },
-      { range: '31-60', min: 31, max: 60, count: 0 },
-      { range: '61-90', min: 61, max: 90, count: 0 },
-      { range: '91-120', min: 91, max: 120, count: 0 },
-      { range: '121-144', min: 121, max: 144, count: 0 },
-      { range: '145+', min: 145, max: Infinity, count: 0 }
-    ];
-
-    dataToProcess.forEach(row => {
-      let fpsValue = row['Average FPS Score'];
-
-      // Ensure it's a number
-      if (typeof fpsValue === 'string') {
-        fpsValue = parseFloat(fpsValue.replace(/[^\d.-]/g, ''));
-      }
-
-      if (fpsValue !== null && !isNaN(fpsValue)) {
-        const range = fpsRanges.find(r => fpsValue >= r.min && fpsValue <= r.max);
-        if (range) {
-          range.count++;
-        }
-      }
-    });
-
-    // Only set if we have some data
-    if (fpsRanges.some(range => range.count > 0)) {
-      setFpsRangeData(fpsRanges);
-    }
-
-    // 7. Process Upscaling Data - Add fallbacks for missing values
-    const upscalingMap = {};
-    dataToProcess.forEach(row => {
-      let upscaling = row['Upscaling'];
-      if (!upscaling || upscaling === "") {
-        upscaling = "None"; // Default value if missing
-      } else {
-        // Standardize upscaling values
-        if (typeof upscaling === 'string') {
-          if (upscaling.toUpperCase().includes('DLSS')) {
-            upscaling = 'DLSS';
-          } else if (upscaling.toUpperCase().includes('FSR')) {
-            upscaling = 'FSR';
-          } else if (upscaling.toUpperCase().includes('XESS')) {
-            upscaling = 'XESS';
-          } else if (upscaling.toUpperCase().includes('NONE') ||
-            upscaling.toUpperCase() === 'IDK' ||
-            upscaling.toUpperCase() === 'I GOT NO IDEA' ||
-            upscaling.toUpperCase() === 'NOT APPLICABLE') {
-            upscaling = 'None';
-          }
-        }
-      }
-
-      if (!upscalingMap[upscaling]) {
-        upscalingMap[upscaling] = 0;
-      }
-      upscalingMap[upscaling]++;
-    });
-
-    const upscalingFreq = Object.entries(upscalingMap)
-      .map(([upscaling, count]) => ({
-        name: upscaling,
-        value: count
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    setUpscalingData(upscalingFreq);
-
-    console.log("Chart data processing complete.");
-    console.log("- GPU Performance:", gpuPerf.length);
-    console.log("- CPU Data:", cpuFreq.length);
-    console.log("- Verdict Data:", verdictFreq.length);
-    console.log("- Ray Tracing Data:", rtFreq.length);
-    console.log("- Resolution Data:", resFreq.length);
-    console.log("- FPS Range Data:", fpsRanges.length);
-    console.log("- Upscaling Data:", upscalingFreq.length);
-  };
-
-  // Helper function to standardize CPU names
-  const standardizeCPUName = (cpuName) => {
-    if (!cpuName) return 'Unknown';
-
-    const name = cpuName.trim();
-
-    // Handle common CPU naming patterns
-    if (name.includes('Ryzen')) {
-      // Simplify AMD Ryzen names
-      const ryzenMatch = name.match(/Ryzen\s+(\d+)\s+(\d{4}X?3?D?)/i);
-      if (ryzenMatch) {
-        return `Ryzen ${ryzenMatch[1]} ${ryzenMatch[2]}`;
-      }
-    }
-
-    if (name.includes('Core')) {
-      // Simplify Intel Core names
-      const intelMatch = name.match(/Core\s+i(\d+)[\-\s](\d{4,5}K?F?)/i);
-      if (intelMatch) {
-        return `Core i${intelMatch[1]}-${intelMatch[2]}`;
-      }
-    }
-
-    return name;
-  };
-
-  // Helper function to standardize verdict values
-  const standardizeVerdict = (verdict) => {
-    if (!verdict) return 'Unknown';
-
-    let standardized = verdict.toString().trim();
-
-    // Remove trailing periods
-    if (standardized.endsWith('.')) {
-      standardized = standardized.slice(0, -1);
-    }
-
-    // Map common variations
-    const verdictMap = {
-      'EXCELLENT': 'Excellent',
-      'GREAT': 'Great',
-      'GOOD': 'Good',
-      'AVERAGE': 'Average',
-      'FAIR': 'Fair',
-      'POOR': 'Poor',
-      'BAD': 'Poor'
-    };
-
-    const upperVerdict = standardized.toUpperCase();
-    for (const [key, value] of Object.entries(verdictMap)) {
-      if (upperVerdict === key || upperVerdict.includes(key)) {
-        return value;
-      }
-    }
-
-    return standardized;
   };
 
   useEffect(() => {
@@ -790,9 +327,18 @@ const BenchmarkDashboard = () => {
     }
 
     setFilteredData(newFilteredData);
-    processData(newFilteredData);
-  }, [data, upscalingFilter, graphicsFilter, rayTracingFilter, frameGenFilter, gpuBrandFilter]);
 
+    // Process filtered data for charts
+    const chartData = processData(newFilteredData);
+    setGpuPerformance(chartData.gpuPerformance);
+    setCpuData(chartData.cpuData);
+    setVerdictData(chartData.verdictData);
+    setRtData(chartData.rtData);
+    setResolutionData(chartData.resolutionData);
+    setFpsRangeData(chartData.fpsRangeData);
+    setUpscalingData(chartData.upscalingData);
+
+  }, [data, upscalingFilter, graphicsFilter, rayTracingFilter, frameGenFilter, gpuBrandFilter]);
 
   // Filter Options
   const filterOptions = {
@@ -803,17 +349,56 @@ const BenchmarkDashboard = () => {
     gpuBrandOptions: ["All", "NVIDIA", "AMD", "Intel"]
   };
 
+  // Simplified average FPS calculation
+  const calculateAvgFps = (data) => {
+    if (!data || data.length === 0) return 0;
+
+    const validFpsValues = data
+      .map(row => parseFloat(row['Average FPS Score']))
+      .filter(val => !isNaN(val));
+
+    if (validFpsValues.length === 0) return 0;
+
+    const sum = validFpsValues.reduce((acc, val) => acc + val, 0);
+    return sum / validFpsValues.length;
+  };
+
+  // Use this function instead of the inline calculation
+  const avgFps = calculateAvgFps(filteredData);
+  const avgScore = calculateAvgFps(filteredData.map(row => ({ ...row, 'Average FPS Score': row['Score'] })));
+
   // Stats for summary section
   const totalEntries = filteredData.length;
-  const avgFps = filteredData
-    .map(row => parseFloat(row['Average FPS Score']))
-    .filter(val => val !== null && !isNaN(val))
-    .reduce((sum, val) => sum + val, 0) / filteredData.filter(row => parseFloat(row['Average FPS Score']) !== null && !isNaN(parseFloat(row['Average FPS Score']))).length || 0;
 
-  const avgScore = filteredData
-    .map(row => parseFloat(row['Score']))
-    .filter(val => val !== null && !isNaN(val))
-    .reduce((sum, val) => sum + val, 0) / filteredData.filter(row => parseFloat(row['Score']) !== null && !isNaN(parseFloat(row['Score']))).length || 0;
+  // Add a function to calculate the most common GPU
+  const getMostCommonGpu = (data) => {
+    if (!data || data.length === 0) return 'N/A';
+
+    // Count occurrences of each GPU
+    const gpuCounts = {};
+    data.forEach(row => {
+      const gpu = row['GPU'];
+      if (gpu) {
+        if (!gpuCounts[gpu]) {
+          gpuCounts[gpu] = 0;
+        }
+        gpuCounts[gpu]++;
+      }
+    });
+
+    // Find the GPU with the highest count
+    let mostCommonGpu = 'N/A';
+    let highestCount = 0;
+
+    Object.entries(gpuCounts).forEach(([gpu, count]) => {
+      if (count > highestCount) {
+        mostCommonGpu = gpu;
+        highestCount = count;
+      }
+    });
+
+    return mostCommonGpu;
+  };
 
   // Handler functions
   const handleFilterChange = (setter) => (e) => {
@@ -834,77 +419,26 @@ const BenchmarkDashboard = () => {
   };
 
   const handleManualDataEntry = () => {
-    // Create sample data for when CSV parsing fails
-    const sampleData = [
-      {
-        "GPU": "NVIDIA RTX 4090",
-        "CPU Model": "Intel Core i9-13900K",
-        "Screen Resolution": "2560x1440",
-        "Graphics Settings": "Ultra",
-        "Ray Tracing": "High",
-        "Frame Generation": "Enabled",
-        "Upscaling": "DLSS",
-        "Average FPS Score": 120.5,
-        "Score": 9500,
-        "Verdict": "Excellent"
-      },
-      {
-        "GPU": "AMD Radeon RX 7900 XTX",
-        "CPU Model": "AMD Ryzen 9 7950X",
-        "Screen Resolution": "3840x2160",
-        "Graphics Settings": "High",
-        "Ray Tracing": "Medium",
-        "Frame Generation": "Enabled",
-        "Upscaling": "FSR",
-        "Average FPS Score": 95.3,
-        "Score": 8800,
-        "Verdict": "Great"
-      },
-      {
-        "GPU": "NVIDIA RTX 4080",
-        "CPU Model": "Intel Core i7-13700K",
-        "Screen Resolution": "3440x1440",
-        "Graphics Settings": "Ultra",
-        "Ray Tracing": "High",
-        "Frame Generation": "Enabled",
-        "Upscaling": "DLSS",
-        "Average FPS Score": 110.2,
-        "Score": 9200,
-        "Verdict": "Excellent"
-      },
-      {
-        "GPU": "NVIDIA RTX 4070",
-        "CPU Model": "AMD Ryzen 7 7800X3D",
-        "Screen Resolution": "2560x1440",
-        "Graphics Settings": "High",
-        "Ray Tracing": "Medium",
-        "Frame Generation": "Enabled",
-        "Upscaling": "DLSS",
-        "Average FPS Score": 98.7,
-        "Score": 8500,
-        "Verdict": "Great"
-      },
-      {
-        "GPU": "AMD Radeon RX 7800 XT",
-        "CPU Model": "AMD Ryzen 7 7700X",
-        "Screen Resolution": "1920x1080",
-        "Graphics Settings": "Ultra",
-        "Ray Tracing": "Medium",
-        "Frame Generation": "Disabled",
-        "Upscaling": "FSR",
-        "Average FPS Score": 144.2,
-        "Score": 8700,
-        "Verdict": "Great"
-      }
-    ];
+    // Instead of using sample data, just show an empty state
+    const emptyData = [];
 
-    setData(sampleData);
-    setFilteredData(sampleData);
-    processData(sampleData);
+    setData(emptyData);
+    setFilteredData(emptyData);
+
+    // Process empty data for charts (will result in empty charts)
+    const chartData = processData(emptyData);
+    setGpuPerformance(chartData.gpuPerformance);
+    setCpuData(chartData.cpuData);
+    setVerdictData(chartData.verdictData);
+    setRtData(chartData.rtData);
+    setResolutionData(chartData.resolutionData);
+    setFpsRangeData(chartData.fpsRangeData);
+    setUpscalingData(chartData.upscalingData);
+
     setLastUpdated(new Date());
     setLoading(false);
     setRefreshing(false);
-    setError("Using sample data because the CSV could not be properly parsed. Check the sheet format.");
+    setError("Unable to load data. Please check the Google Sheet URL and format, then try again.");
   };
 
   // Render data options
@@ -915,12 +449,6 @@ const BenchmarkDashboard = () => {
         className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
       >
         Use Default URL
-      </button>
-      <button
-        onClick={handleManualDataEntry}
-        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
-      >
-        Load Sample Data
       </button>
     </div>
   );
@@ -984,7 +512,7 @@ const BenchmarkDashboard = () => {
         totalEntries={totalEntries}
         avgFps={avgFps}
         avgScore={avgScore}
-        mostCommonGpu={gpuPerformance.length > 0 ? gpuPerformance[0]?.name : 'N/A'}
+        mostCommonGpu={getMostCommonGpu(filteredData)}
       />
 
       {/* Main Charts Row */}
