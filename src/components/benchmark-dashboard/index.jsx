@@ -1,6 +1,5 @@
 // BenchmarkDashboard.jsx - Main Component
-import React, { useState, useEffect } from 'react';
-import Papa from 'papaparse';
+import React, { useState, useEffect, useCallback } from 'react';
 
 // Import components
 import LoadingScreen from './LoadingScreen';
@@ -104,7 +103,8 @@ const BenchmarkDashboard = () => {
   // Toggle debug mode
   const toggleDebug = () => setDebugMode(!debugMode);
 
-  const fetchData = async (urlToFetch = null) => {
+  // Wrap fetchData in useCallback to prevent recreation on each render
+  const fetchData = useCallback(async (urlToFetch = null) => {
     try {
       setError(null);
       setRefreshing(true);
@@ -281,12 +281,12 @@ const BenchmarkDashboard = () => {
       // Use sample data as fallback
       handleManualDataEntry();
     }
-  };
+  }, [sheetUrl]); // Add dependencies used inside the callback
 
   useEffect(() => {
     // Load data from the default URL on initial load
     fetchData(DEFAULT_GOOGLE_SHEET_URL);
-  }, []);
+  }, [fetchData]); // Now fetchData is stable between renders
 
   useEffect(() => {
     // Apply filters
