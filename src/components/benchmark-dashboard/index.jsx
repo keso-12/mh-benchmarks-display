@@ -17,6 +17,7 @@ import CPUChart from './charts/CPUChart';
 import ResolutionChart from './charts/ResolutionChart';
 import ResolutionPerformanceTable from './ResolutionPerformanceTable';
 import Footer from './Footer';
+import GPUDetailAnalysis from './GPUDetailAnalysis';
 
 // Import utility functions
 import {
@@ -91,6 +92,11 @@ const BenchmarkDashboard = () => {
   const [rayTracingFilter, setRayTracingFilter] = useState("All");
   const [frameGenFilter, setFrameGenFilter] = useState("All");
   const [gpuBrandFilter, setGpuBrandFilter] = useState("All");
+
+  // Add new state for GPU detail analysis
+  const [selectedGpu, setSelectedGpu] = useState(null);
+  const [gpuDetailData, setGpuDetailData] = useState([]);
+  const [showGpuDetail, setShowGpuDetail] = useState(false);
 
   // Default Google Sheet URL
   const DEFAULT_GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1kvCL6cRc8BZf5hkXQwSKiStXLoQm3vB8J8NKCRh6nLY/export?format=csv&gid=393311431";
@@ -338,7 +344,77 @@ const BenchmarkDashboard = () => {
     setFpsRangeData(chartData.fpsRangeData);
     setUpscalingData(chartData.upscalingData);
 
-  }, [data, upscalingFilter, graphicsFilter, rayTracingFilter, frameGenFilter, gpuBrandFilter]);
+    // Update GPU detail data if a GPU is selected
+    if (selectedGpu) {
+      updateGpuDetailData(selectedGpu, newFilteredData);
+    }
+
+  }, [data, upscalingFilter, graphicsFilter, rayTracingFilter, frameGenFilter, gpuBrandFilter, selectedGpu]);
+
+  // Function to update GPU detail data
+  const updateGpuDetailData = (gpu, dataToFilter) => {
+    const gpuEntries = dataToFilter.filter(entry => entry.GPU === gpu);
+
+    // Group by CPU and calculate average FPS
+    const cpuPerformanceMap = {};
+
+    gpuEntries.forEach(entry => {
+      const cpu = entry['CPU Model'];
+      const fps = parseFloat(entry['Average FPS Score']) || 0;
+      const score = parseFloat(entry['Score']) || 0;
+
+      if (!cpuPerformanceMap[cpu]) {
+        cpuPerformanceMap[cpu] = {
+          cpu,
+          entries: 0,
+          totalFps: 0,
+          totalScore: 0,
+          settings: []
+        };
+      }
+
+      cpuPerformanceMap[cpu].entries++;
+      cpuPerformanceMap[cpu].totalFps += fps;
+      cpuPerformanceMap[cpu].totalScore += score;
+
+      // Store settings info for this combination
+      cpuPerformanceMap[cpu].settings.push({
+        resolution: entry['Screen Resolution'],
+        graphics: entry['Graphics Settings'],
+        rayTracing: entry['Ray Tracing'],
+        upscaling: entry['Upscaling'],
+        frameGen: entry['Frame Generation'],
+        fps,
+        score
+      });
+    });
+
+    // Convert to array and calculate averages
+    const cpuPerformanceData = Object.values(cpuPerformanceMap).map(item => ({
+      cpu: item.cpu,
+      entries: item.entries,
+      avgFps: item.totalFps / item.entries,
+      avgScore: item.totalScore / item.entries,
+      settings: item.settings
+    }));
+
+    // Sort by average FPS descending
+    cpuPerformanceData.sort((a, b) => b.avgFps - a.avgFps);
+
+    setGpuDetailData(cpuPerformanceData);
+  };
+
+  // Handler for selecting a GPU for detailed analysis
+  const handleGpuSelect = (gpu) => {
+    setSelectedGpu(gpu);
+    updateGpuDetailData(gpu, filteredData);
+    setShowGpuDetail(true);
+  };
+
+  // Handler to close GPU detail view
+  const handleCloseGpuDetail = () => {
+    setShowGpuDetail(false);
+  };
 
   // Filter Options
   const filterOptions = {
@@ -458,7 +534,7 @@ const BenchmarkDashboard = () => {
   }
 
   return (
-    <div className="p-4 max-w-6xl mx-auto bg-white">
+    <div className="p-4 max-w-6xl mx-auto bg-gray-50 min-h-screen">
       <HeaderSection
         lastUpdated={lastUpdated}
         handleRefresh={handleRefresh}
@@ -490,21 +566,21 @@ const BenchmarkDashboard = () => {
       )}
 
       <FilterSection
-        filterOptions={filterOptions}
-        filters={{
-          upscalingFilter,
-          graphicsFilter,
-          rayTracingFilter,
-          frameGenFilter,
-          gpuBrandFilter
-        }}
-        setters={{
-          setUpscalingFilter,
-          setGraphicsFilter,
-          setRayTracingFilter,
-          setFrameGenFilter,
-          setGpuBrandFilter
-        }}
+        upscalingFilter={upscalingFilter}
+        setUpscalingFilter={setUpscalingFilter}
+        graphicsFilter={graphicsFilter}
+        setGraphicsFilter={setGraphicsFilter}
+        rayTracingFilter={rayTracingFilter}
+        setRayTracingFilter={setRayTracingFilter}
+        frameGenFilter={frameGenFilter}
+        setFrameGenFilter={setFrameGenFilter}
+        gpuBrandFilter={gpuBrandFilter}
+        setGpuBrandFilter={setGpuBrandFilter}
+        upscalingOptions={filterOptions.upscalingOptions}
+        graphicsOptions={filterOptions.graphicsOptions}
+        rayTracingOptions={filterOptions.rayTracingOptions}
+        frameGenOptions={filterOptions.frameGenOptions}
+        gpuBrandOptions={filterOptions.gpuBrandOptions}
         handleFilterChange={handleFilterChange}
       />
 
@@ -516,10 +592,27 @@ const BenchmarkDashboard = () => {
       />
 
       {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <GPUPerformanceChart data={gpuPerformance} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div className="relative">
+          <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-10 shadow-sm">
+            Click for details
+          </div>
+          <GPUPerformanceChart
+            data={gpuPerformance}
+            onGpuSelect={handleGpuSelect}
+          />
+        </div>
         <FPSDistributionChart data={fpsRangeData} />
       </div>
+
+      {/* GPU Detail Analysis Section */}
+      {showGpuDetail && (
+        <GPUDetailAnalysis
+          gpu={selectedGpu}
+          data={gpuDetailData}
+          onClose={handleCloseGpuDetail}
+        />
+      )}
 
       {/* Second Row of Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
