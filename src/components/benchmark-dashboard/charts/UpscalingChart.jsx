@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 const UpscalingChart = ({ data }) => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -9,11 +9,11 @@ const UpscalingChart = ({ data }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
-      <h2 className="font-bold text-lg mb-4">Upscaling Technologies</h2>
+    <div className="bg-white p-4 rounded-lg shadow flex flex-col items-center">
+      <h2 className="font-bold text-lg mb-4 self-start">Upscaling Technologies</h2>
       {data && data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
+        <div className="w-full flex justify-center">
+          <PieChart width={300} height={300}>
             <Pie
               data={data}
               cx="50%"
@@ -31,7 +31,7 @@ const UpscalingChart = ({ data }) => {
             </Pie>
             <Tooltip formatter={(value) => [`${value} entries`, 'Count']} />
           </PieChart>
-        </ResponsiveContainer>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-64">No data available with current filters</div>
       )}

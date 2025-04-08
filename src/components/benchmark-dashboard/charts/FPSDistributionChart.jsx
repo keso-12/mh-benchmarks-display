@@ -1,8 +1,26 @@
 // components/charts/FPSDistributionChart.jsx
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 
 const FPSDistributionChart = ({ data }) => {
+  const [width, setWidth] = React.useState(0);
+  const chartRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (chartRef.current) {
+      setWidth(chartRef.current.clientWidth);
+    }
+
+    const handleResize = () => {
+      if (chartRef.current) {
+        setWidth(chartRef.current.clientWidth);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
   // Ensure we have valid data in the expected format
@@ -14,11 +32,13 @@ const FPSDistributionChart = ({ data }) => {
   );
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
+    <div className="bg-white p-4 rounded-lg shadow w-full" ref={chartRef}>
       <h2 className="font-bold text-lg mb-4">FPS Distribution</h2>
       {validData ? (
-        <ResponsiveContainer width="100%" height={400}>
+        <div className="w-full">
           <BarChart
+            width={width || 500}
+            height={400}
             data={data}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
           >
@@ -35,7 +55,7 @@ const FPSDistributionChart = ({ data }) => {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-64 text-gray-500">
           No FPS distribution data available with current filters

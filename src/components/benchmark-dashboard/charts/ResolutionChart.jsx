@@ -1,6 +1,6 @@
 // components/charts/ResolutionChart.jsx
 import React, { useMemo } from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 const ResolutionChart = ({ data }) => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -77,8 +77,8 @@ const ResolutionChart = ({ data }) => {
       <h2 className="font-bold text-lg mb-4">Screen Resolutions</h2>
       {data && data.length > 0 ? (
         <div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
+          <div className="w-full">
+            <PieChart width={400} height={300}>
               <Pie
                 data={data}
                 cx="50%"
@@ -96,7 +96,7 @@ const ResolutionChart = ({ data }) => {
               </Pie>
               <Tooltip formatter={(value) => [`${value} entries`, 'Count']} />
             </PieChart>
-          </ResponsiveContainer>
+          </div>
 
           {resolutionCategories.length > 0 && (
             <div className="mt-4">

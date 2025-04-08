@@ -1,8 +1,26 @@
 // components/charts/GPUPerformanceChart.jsx
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 
 const GPUPerformanceChart = ({ data, onGpuSelect }) => {
+  const [width, setWidth] = React.useState(0);
+  const chartRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (chartRef.current) {
+      setWidth(chartRef.current.clientWidth);
+    }
+
+    const handleResize = () => {
+      if (chartRef.current) {
+        setWidth(chartRef.current.clientWidth);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
 
   // Ensure we have valid data in the expected format
@@ -34,14 +52,16 @@ const GPUPerformanceChart = ({ data, onGpuSelect }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm">
+    <div className="bg-white p-4 rounded-lg shadow-sm w-full" ref={chartRef}>
       <div className="flex flex-col mb-3">
         <h2 className="font-medium text-base text-gray-800">Top 15 GPUs by Average FPS</h2>
         <p className="text-xs text-blue-600 mt-1">Click on any GPU bar for detailed analysis</p>
       </div>
       {validData ? (
-        <ResponsiveContainer width="100%" height={350}>
+        <div className="w-full">
           <BarChart
+            width={width || 500}
+            height={350}
             data={data}
             margin={{ top: 5, right: 20, left: 20, bottom: 80 }}
           >
@@ -74,7 +94,7 @@ const GPUPerformanceChart = ({ data, onGpuSelect }) => {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-64 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
           <div className="text-center p-4">

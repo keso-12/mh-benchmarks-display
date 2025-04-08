@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 
 const CPUChart = ({ data }) => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
@@ -8,8 +8,10 @@ const CPUChart = ({ data }) => {
     <div className="bg-white p-4 rounded-lg shadow">
       <h2 className="font-bold text-lg mb-4">Top 10 CPUs by Frequency</h2>
       {data && data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={400}>
+        <div className="w-full">
           <BarChart
+            width={600}
+            height={400}
             data={data}
             margin={{ top: 5, right: 30, left: 20, bottom: 120 }}
           >
@@ -23,7 +25,7 @@ const CPUChart = ({ data }) => {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-64">No data available with current filters</div>
       )}

@@ -1,11 +1,26 @@
-
-
 // components/charts/VerdictChart.jsx
 import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 const VerdictChart = ({ data }) => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+  const [width, setWidth] = React.useState(300);
+  const chartRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (chartRef.current) {
+      setWidth(chartRef.current.clientWidth);
+    }
+
+    const handleResize = () => {
+      if (chartRef.current) {
+        setWidth(chartRef.current.clientWidth);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Ensure we have valid data in the expected format
   const validData = Array.isArray(data) && data.length > 0 && data.every(item =>
@@ -27,11 +42,11 @@ const VerdictChart = ({ data }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
-      <h2 className="font-bold text-lg mb-4">Performance Verdict</h2>
+    <div className="chart-container">
+      <h2 className="chart-title">Performance Verdict</h2>
       {validData ? (
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
+        <div className="chart-content">
+          <PieChart width={Math.min(300, width)} height={300}>
             <Pie
               data={data}
               cx="50%"
@@ -49,9 +64,9 @@ const VerdictChart = ({ data }) => {
             </Pie>
             <Tooltip formatter={(value) => [`${value} entries`, 'Count']} />
           </PieChart>
-        </ResponsiveContainer>
+        </div>
       ) : (
-        <div className="flex items-center justify-center h-64 text-gray-500">
+        <div className="no-data-message">
           No verdict data available with current filters
         </div>
       )}

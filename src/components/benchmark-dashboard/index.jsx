@@ -591,40 +591,47 @@ const BenchmarkDashboard = () => {
         mostCommonGpu={getMostCommonGpu(filteredData)}
       />
 
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <div className="relative">
-          <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-10 shadow-sm">
-            Click for details
-          </div>
+      {/* First Row of Charts */}
+      <div className="chart-grid chart-grid-2">
+        <div className="chart-container">
           <GPUPerformanceChart
             data={gpuPerformance}
             onGpuSelect={handleGpuSelect}
           />
+          {showGpuDetail && (
+            <GPUDetailAnalysis
+              gpu={selectedGpu}
+              data={gpuDetailData}
+              onClose={handleCloseGpuDetail}
+            />
+          )}
         </div>
-        <FPSDistributionChart data={fpsRangeData} />
+        <div className="chart-container">
+          <FPSDistributionChart data={fpsRangeData} />
+        </div>
       </div>
 
-      {/* GPU Detail Analysis Section */}
-      {showGpuDetail && (
-        <GPUDetailAnalysis
-          gpu={selectedGpu}
-          data={gpuDetailData}
-          onClose={handleCloseGpuDetail}
-        />
-      )}
-
       {/* Second Row of Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <VerdictChart data={verdictData} />
-        <UpscalingChart data={upscalingData} />
-        <RayTracingChart data={rtData} />
+      <div className="chart-grid chart-grid-3">
+        <div className="chart-container">
+          <VerdictChart data={verdictData} />
+        </div>
+        <div className="chart-container">
+          <UpscalingChart data={upscalingData} />
+        </div>
+        <div className="chart-container">
+          <RayTracingChart data={rtData} />
+        </div>
       </div>
 
       {/* Third Row of Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <CPUChart data={cpuData} />
-        <ResolutionChart data={resolutionData} />
+      <div className="chart-grid chart-grid-2">
+        <div className="chart-container">
+          <CPUChart data={cpuData} />
+        </div>
+        <div className="chart-container">
+          <ResolutionChart data={resolutionData} />
+        </div>
       </div>
 
       {/* Fourth Row - Resolution Performance - Now uses actual data */}
