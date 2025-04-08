@@ -461,7 +461,7 @@ const BenchmarkDashboard = () => {
     return gpuName;
   };
 
-  // Function to clean up the processData function to use this new standardization
+  // Updated processData function to fix all chart components
   const processData = (dataToProcess) => {
     if (!dataToProcess || dataToProcess.length === 0) {
       // Set empty data for all charts
@@ -475,13 +475,15 @@ const BenchmarkDashboard = () => {
       return;
     }
 
-    // Process GPU Performance with improved standardization
+    console.log("Processing data for charts, total rows:", dataToProcess.length);
+
+    // 1. Process GPU Performance (already working)
     const gpuMap = {};
     dataToProcess.forEach(row => {
       const gpu = row['GPU'];
       const fps = row['Average FPS Score'];
       if (gpu && fps !== null && !isNaN(fps)) {
-        // Standardize the GPU name to group similar models together
+        // Standardize the GPU name
         const standardizedGpu = standardizeGPUName(gpu);
 
         if (!gpuMap[standardizedGpu]) {
@@ -504,27 +506,238 @@ const BenchmarkDashboard = () => {
 
     setGpuPerformance(gpuPerf);
 
-    // Continue with the rest of the processData function...
-    // (The rest of the processData function remains unchanged)
-  };
+    // 2. Process CPU Data - Fix handling of CPU model names
+    const cpuMap = {};
+    dataToProcess.forEach(row => {
+      let cpu = row['CPU Model'];
+      if (cpu) {
+        // Standardize CPU names
+        cpu = standardizeCPUName(cpu);
 
-  // Helper function to find a value by trying multiple possible key names
-  const findValueByPossibleKeys = (obj, possibleKeys) => {
-    for (const key of possibleKeys) {
-      // Try the exact key
-      if (obj[key] !== undefined) {
-        return obj[key];
+        if (!cpuMap[cpu]) {
+          cpuMap[cpu] = 0;
+        }
+        cpuMap[cpu]++;
+      }
+    });
+
+    const cpuFreq = Object.entries(cpuMap)
+      .map(([cpu, count]) => ({
+        name: cpu,
+        count: count
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    setCpuData(cpuFreq);
+
+    // 3. Process Verdict Data - Fix handling of verdict values
+    const verdictMap = {};
+    dataToProcess.forEach(row => {
+      let verdict = row['Verdict'];
+      if (verdict) {
+        // Standardize verdict values
+        verdict = standardizeVerdict(verdict);
+
+        if (!verdictMap[verdict]) {
+          verdictMap[verdict] = 0;
+        }
+        verdictMap[verdict]++;
+      }
+    });
+
+    const verdictFreq = Object.entries(verdictMap)
+      .map(([verdict, count]) => ({
+        name: verdict,
+        value: count
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    setVerdictData(verdictFreq);
+
+    // 4. Process Ray Tracing Data - Add fallbacks for missing values
+    const rtMap = {};
+    dataToProcess.forEach(row => {
+      let rt = row['Ray Tracing'];
+      if (!rt || rt === "") {
+        rt = "Off"; // Default value if missing
       }
 
-      // Try case-insensitive match
-      const lcKey = key.toLowerCase();
-      for (const objKey in obj) {
-        if (objKey.toLowerCase() === lcKey) {
-          return obj[objKey];
+      if (!rtMap[rt]) {
+        rtMap[rt] = 0;
+      }
+      rtMap[rt]++;
+    });
+
+    const rtFreq = Object.entries(rtMap)
+      .map(([setting, count]) => ({
+        name: setting,
+        value: count
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    setRtData(rtFreq);
+
+    // 5. Process Resolution Data - Add fallbacks for missing values
+    const resMap = {};
+    dataToProcess.forEach(row => {
+      let res = row['Screen Resolution'];
+      if (!res || res === "") {
+        res = "Unknown"; // Default value if missing
+      }
+
+      if (!resMap[res]) {
+        resMap[res] = 0;
+      }
+      resMap[res]++;
+    });
+
+    const resFreq = Object.entries(resMap)
+      .map(([res, count]) => ({
+        name: res,
+        value: count
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+
+    setResolutionData(resFreq);
+
+    // 6. Process FPS Range Data - Make sure we're handling numeric values correctly
+    const fpsRanges = [
+      { range: '0-30', min: 0, max: 30, count: 0 },
+      { range: '31-60', min: 31, max: 60, count: 0 },
+      { range: '61-90', min: 61, max: 90, count: 0 },
+      { range: '91-120', min: 91, max: 120, count: 0 },
+      { range: '121-144', min: 121, max: 144, count: 0 },
+      { range: '145+', min: 145, max: Infinity, count: 0 }
+    ];
+
+    dataToProcess.forEach(row => {
+      let fpsValue = row['Average FPS Score'];
+
+      // Ensure it's a number
+      if (typeof fpsValue === 'string') {
+        fpsValue = parseFloat(fpsValue.replace(/[^\d.-]/g, ''));
+      }
+
+      if (fpsValue !== null && !isNaN(fpsValue)) {
+        const range = fpsRanges.find(r => fpsValue >= r.min && fpsValue <= r.max);
+        if (range) {
+          range.count++;
         }
       }
+    });
+
+    // Only set if we have some data
+    if (fpsRanges.some(range => range.count > 0)) {
+      setFpsRangeData(fpsRanges);
     }
-    return null;
+
+    // 7. Process Upscaling Data - Add fallbacks for missing values
+    const upscalingMap = {};
+    dataToProcess.forEach(row => {
+      let upscaling = row['Upscaling'];
+      if (!upscaling || upscaling === "") {
+        upscaling = "None"; // Default value if missing
+      } else {
+        // Standardize upscaling values
+        if (typeof upscaling === 'string') {
+          if (upscaling.toUpperCase().includes('DLSS')) {
+            upscaling = 'DLSS';
+          } else if (upscaling.toUpperCase().includes('FSR')) {
+            upscaling = 'FSR';
+          } else if (upscaling.toUpperCase().includes('XESS')) {
+            upscaling = 'XESS';
+          } else if (upscaling.toUpperCase().includes('NONE') ||
+            upscaling.toUpperCase() === 'IDK' ||
+            upscaling.toUpperCase() === 'I GOT NO IDEA' ||
+            upscaling.toUpperCase() === 'NOT APPLICABLE') {
+            upscaling = 'None';
+          }
+        }
+      }
+
+      if (!upscalingMap[upscaling]) {
+        upscalingMap[upscaling] = 0;
+      }
+      upscalingMap[upscaling]++;
+    });
+
+    const upscalingFreq = Object.entries(upscalingMap)
+      .map(([upscaling, count]) => ({
+        name: upscaling,
+        value: count
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    setUpscalingData(upscalingFreq);
+
+    console.log("Chart data processing complete.");
+    console.log("- GPU Performance:", gpuPerf.length);
+    console.log("- CPU Data:", cpuFreq.length);
+    console.log("- Verdict Data:", verdictFreq.length);
+    console.log("- Ray Tracing Data:", rtFreq.length);
+    console.log("- Resolution Data:", resFreq.length);
+    console.log("- FPS Range Data:", fpsRanges.length);
+    console.log("- Upscaling Data:", upscalingFreq.length);
+  };
+
+  // Helper function to standardize CPU names
+  const standardizeCPUName = (cpuName) => {
+    if (!cpuName) return 'Unknown';
+
+    const name = cpuName.trim();
+
+    // Handle common CPU naming patterns
+    if (name.includes('Ryzen')) {
+      // Simplify AMD Ryzen names
+      const ryzenMatch = name.match(/Ryzen\s+(\d+)\s+(\d{4}X?3?D?)/i);
+      if (ryzenMatch) {
+        return `Ryzen ${ryzenMatch[1]} ${ryzenMatch[2]}`;
+      }
+    }
+
+    if (name.includes('Core')) {
+      // Simplify Intel Core names
+      const intelMatch = name.match(/Core\s+i(\d+)[\-\s](\d{4,5}K?F?)/i);
+      if (intelMatch) {
+        return `Core i${intelMatch[1]}-${intelMatch[2]}`;
+      }
+    }
+
+    return name;
+  };
+
+  // Helper function to standardize verdict values
+  const standardizeVerdict = (verdict) => {
+    if (!verdict) return 'Unknown';
+
+    let standardized = verdict.toString().trim();
+
+    // Remove trailing periods
+    if (standardized.endsWith('.')) {
+      standardized = standardized.slice(0, -1);
+    }
+
+    // Map common variations
+    const verdictMap = {
+      'EXCELLENT': 'Excellent',
+      'GREAT': 'Great',
+      'GOOD': 'Good',
+      'AVERAGE': 'Average',
+      'FAIR': 'Fair',
+      'POOR': 'Poor',
+      'BAD': 'Poor'
+    };
+
+    const upperVerdict = standardized.toUpperCase();
+    for (const [key, value] of Object.entries(verdictMap)) {
+      if (upperVerdict === key || upperVerdict.includes(key)) {
+        return value;
+      }
+    }
+
+    return standardized;
   };
 
   useEffect(() => {
